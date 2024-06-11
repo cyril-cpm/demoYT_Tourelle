@@ -39,7 +39,7 @@ void setup() {
   myServo.attach(SERVO_PIN);
   myServo.write(40);
   //INIT_DEFAULT_SETTINGATOR();
-  STR.SetCommunicator(ESPNowCTR::CreateInstance());
+  STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
   pinMode(G_PIN, OUTPUT);
   pinMode(D_PIN, OUTPUT);
   digitalWrite(G_PIN, LOW);
