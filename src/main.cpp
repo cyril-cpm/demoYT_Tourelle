@@ -10,10 +10,60 @@ Servo myServo;
 
 uint8_t movingSpeed = 255;
 
+ulong motorTime = micros();
+
+#define NONE 0
+#define LEFT 1
+#define RIGHT 2
+
+int side = 0;
+bool leftMotorRunning = false;
+bool rightMotorRunning  = false;
+
+void updateMotor()
+{
+    ulong currentTime = micros();
+    ulong elapsedTime = currentTime - motorTime;
+
+    ulong duty = elapsedTime / 3000;
+
+    if (duty < movingSpeed)
+    {
+        if (side == LEFT && !leftMotorRunning)
+        {
+            digitalWrite(G_PIN, HIGH);
+            leftMotorRunning = true;
+        }
+        else if (side == RIGHT && !rightMotorRunning)
+        {
+            digitalWrite(D_PIN, HIGH);
+            rightMotorRunning = true;
+        }
+
+    }
+    else
+    {
+        if (side == LEFT && leftMotorRunning)
+        {
+            digitalWrite(G_PIN, LOW);
+            leftMotorRunning = false;
+        }
+        else if (side == RIGHT && rightMotorRunning)
+        {
+            digitalWrite(D_PIN, LOW);
+            rightMotorRunning = false;
+        }
+    }
+
+    if (duty > 255)
+        motorTime = currentTime;
+}
+
 void stopMove()
 {
-  analogWrite(G_PIN, 0);
-  analogWrite(D_PIN, 0);
+  digitalWrite(G_PIN, 0);
+  digitalWrite(D_PIN, 0);
+  side = NONE;
   delay(250);
 }
 
@@ -22,8 +72,8 @@ void moveLeft()
   stopMove();
   //digitalWrite(G_PIN, HIGH);
   
-
-  analogWrite(G_PIN, movingSpeed);
+    side = LEFT;
+  //analogWrite(G_PIN, movingSpeed);
 }
 
 void moveRight() 
@@ -31,8 +81,8 @@ void moveRight()
   stopMove();
   //digitalWrite(D_PIN, HIGH);
  
-
-  analogWrite(D_PIN, movingSpeed);
+    side = RIGHT;
+  //analogWrite(D_PIN, movingSpeed);
 }
 
 void shoot()
@@ -44,16 +94,18 @@ void shoot()
 
 void setup() {
   //Serial.begin(9600);
-  analogWriteResolution(8);
-  analogWriteFrequency(100);
+  //analogWriteResolution(8);
+  //analogWriteFrequency(25);
   myServo.attach(SERVO_PIN);
   myServo.write(40);
   //INIT_DEFAULT_SETTINGATOR();
   STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
   pinMode(G_PIN, OUTPUT);
   pinMode(D_PIN, OUTPUT);
-  analogWrite(G_PIN, 0);
-  analogWrite(D_PIN, 0);
+  //analogWrite(G_PIN, 0);
+  //analogWrite(D_PIN, 0);
+    digitalWrite(G_PIN, LOW);
+    digitalWrite(D_PIN, LOW);
 
   STR.AddSetting(Setting::Type::Slider, &movingSpeed, sizeof(uint8_t), "SPEED");
   STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "GAUCHE", &moveLeft);
@@ -64,4 +116,5 @@ void setup() {
 
 void loop () {
   STR.Update();
+  updateMotor();
 }
