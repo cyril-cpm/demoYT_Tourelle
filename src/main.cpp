@@ -1,6 +1,10 @@
+//#define SERIAL_DEBUG
+
 #include <ESP32Servo.h>
-#include <STR.h>
+#include <Settingator.h>
 #include <ESPNowCommunicator.h>
+#include <HardwareSerialCommunicator.h>
+#include <MiscDef.h>
 
 Servo myServo;
 
@@ -15,26 +19,46 @@ ulong motorTime = micros();
 #define NONE 0
 #define LEFT 1
 #define RIGHT 2
+#define PULSE_WIDTH 7500 //micro seconds
 
 int side = 0;
 bool leftMotorRunning = false;
 bool rightMotorRunning  = false;
+
+bool motorOnTab[256] = { false };
+
+void updateMotorOnTab()
+{
+  bzero(motorOnTab, 256);
+  if (!movingSpeed)
+    return;
+
+  float interval = 255.0 / (float)movingSpeed;
+
+  int tabIndex = 0;
+
+  for (int i = 0; i < movingSpeed; i++)
+  {
+    tabIndex = (int)(i * interval);
+    motorOnTab[tabIndex] = true;
+  }
+}
 
 void updateMotor()
 {
     ulong currentTime = micros();
     ulong elapsedTime = currentTime - motorTime;
 
-    ulong duty = elapsedTime / 3000;
+    ulong dutyStep = elapsedTime / PULSE_WIDTH;
 
-    if (duty < movingSpeed)
+    if (motorOnTab[dutyStep])
     {
-        if (side == LEFT && !leftMotorRunning)
+        if (side == LEFT && !leftMotorRunning && !rightMotorRunning)
         {
             digitalWrite(G_PIN, HIGH);
             leftMotorRunning = true;
         }
-        else if (side == RIGHT && !rightMotorRunning)
+        else if (side == RIGHT && !rightMotorRunning && !leftMotorRunning)
         {
             digitalWrite(D_PIN, HIGH);
             rightMotorRunning = true;
@@ -55,14 +79,16 @@ void updateMotor()
         }
     }
 
-    if (duty > 255)
+    if (dutyStep > 255)
         motorTime = currentTime;
 }
 
 void stopMove()
 {
-  digitalWrite(G_PIN, 0);
-  digitalWrite(D_PIN, 0);
+  digitalWrite(G_PIN, LOW);
+  digitalWrite(D_PIN, LOW);
+  leftMotorRunning = false;
+  rightMotorRunning = false;
   side = NONE;
   delay(250);
 }
@@ -70,19 +96,15 @@ void stopMove()
 void moveLeft()
 {
   stopMove();
-  //digitalWrite(G_PIN, HIGH);
   
-    side = LEFT;
-  //analogWrite(G_PIN, movingSpeed);
+  side = LEFT;
 }
 
 void moveRight() 
 {
   stopMove();
-  //digitalWrite(D_PIN, HIGH);
  
-    side = RIGHT;
-  //analogWrite(D_PIN, movingSpeed);
+  side = RIGHT;
 }
 
 void shoot()
@@ -94,20 +116,19 @@ void shoot()
 
 void setup() {
   //Serial.begin(9600);
-  //analogWriteResolution(8);
-  //analogWriteFrequency(25);
+
   myServo.attach(SERVO_PIN);
   myServo.write(40);
-  //INIT_DEFAULT_SETTINGATOR();
-  STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
+
+  //STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
+  STR.SetCommunicator(HardwareSerialCTR::CreateInstance(9600));
+  updateMotorOnTab();
   pinMode(G_PIN, OUTPUT);
   pinMode(D_PIN, OUTPUT);
-  //analogWrite(G_PIN, 0);
-  //analogWrite(D_PIN, 0);
-    digitalWrite(G_PIN, LOW);
-    digitalWrite(D_PIN, LOW);
+  digitalWrite(G_PIN, LOW);
+  digitalWrite(D_PIN, LOW);
 
-  STR.AddSetting(Setting::Type::Slider, &movingSpeed, sizeof(uint8_t), "SPEED");
+  STR.AddSetting(Setting::Type::Slider, &movingSpeed, sizeof(uint8_t), "SPEED", &updateMotorOnTab);
   STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "GAUCHE", &moveLeft);
   STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "STOP", &stopMove);
   STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "DROITE", &moveRight);
