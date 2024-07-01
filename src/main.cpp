@@ -19,7 +19,7 @@ ulong motorTime = micros();
 #define NONE 0
 #define LEFT 1
 #define RIGHT 2
-#define PULSE_WIDTH 7500 //micro seconds
+#define PULSE_WIDTH 30000 //micro seconds
 
 int side = 0;
 bool leftMotorRunning = false;
@@ -120,8 +120,8 @@ void setup() {
   myServo.attach(SERVO_PIN);
   myServo.write(40);
 
-  //STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
-  STR.SetCommunicator(HardwareSerialCTR::CreateInstance(9600));
+  STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
+  //STR.SetCommunicator(HardwareSerialCTR::CreateInstance(9600));
   updateMotorOnTab();
   pinMode(G_PIN, OUTPUT);
   pinMode(D_PIN, OUTPUT);
