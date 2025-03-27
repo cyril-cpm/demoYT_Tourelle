@@ -1,141 +1,127 @@
 //#define SERIAL_DEBUG
 
-#include <ESP32Servo.h>
+#include <HP_ESP32Servo.h>
 #include <Settingator.h>
 #include <ESPNowCommunicator.h>
 #include <HardwareSerialCommunicator.h>
 #include <MiscDef.h>
+//#include <STR.h>
+#include "CustomType.h"
 
-Servo myServo;
+#include <WebSocketCommunicator.h>
 
-#define G_PIN 32
-#define D_PIN 25
-#define SERVO_PIN 12
+Servo triggerServo(GPIO_NUM_12);
+Servo motorServo(GPIO_NUM_27);
 
-uint8_t movingSpeed = 255;
+#define TRIGGER_PIN 12
+#define MOTOR_PIN 27
 
-ulong motorTime = micros();
+bool displayMotorPos = false;
 
-#define NONE 0
-#define LEFT 1
-#define RIGHT 2
-#define PULSE_WIDTH 30000 //micro seconds
 
-int side = 0;
-bool leftMotorRunning = false;
-bool rightMotorRunning  = false;
 
-bool motorOnTab[256] = { false };
+Settingator STR(nullptr);
 
-void updateMotorOnTab()
-{
-  bzero(motorOnTab, 256);
-  if (!movingSpeed)
-    return;
-
-  float interval = 255.0 / (float)movingSpeed;
-
-  int tabIndex = 0;
-
-  for (int i = 0; i < movingSpeed; i++)
-  {
-    tabIndex = (int)(i * interval);
-    motorOnTab[tabIndex] = true;
-  }
-}
-
-void updateMotor()
-{
-    ulong currentTime = micros();
-    ulong elapsedTime = currentTime - motorTime;
-
-    ulong dutyStep = elapsedTime / PULSE_WIDTH;
-
-    if (motorOnTab[dutyStep])
-    {
-        if (side == LEFT && !leftMotorRunning && !rightMotorRunning)
-        {
-            digitalWrite(G_PIN, HIGH);
-            leftMotorRunning = true;
-        }
-        else if (side == RIGHT && !rightMotorRunning && !leftMotorRunning)
-        {
-            digitalWrite(D_PIN, HIGH);
-            rightMotorRunning = true;
-        }
-
-    }
-    else
-    {
-        if (side == LEFT && leftMotorRunning)
-        {
-            digitalWrite(G_PIN, LOW);
-            leftMotorRunning = false;
-        }
-        else if (side == RIGHT && rightMotorRunning)
-        {
-            digitalWrite(D_PIN, LOW);
-            rightMotorRunning = false;
-        }
-    }
-
-    if (dutyStep > 255)
-        motorTime = currentTime;
-}
-
-void stopMove()
-{
-  digitalWrite(G_PIN, LOW);
-  digitalWrite(D_PIN, LOW);
-  leftMotorRunning = false;
-  rightMotorRunning = false;
-  side = NONE;
-  delay(250);
-}
-
-void moveLeft()
-{
-  stopMove();
-  
-  side = LEFT;
-}
-
-void moveRight() 
-{
-  stopMove();
- 
-  side = RIGHT;
-}
+STR_Float motorPos = 18.0f;
+STR_UInt32 fadingTimeMS = 0;
 
 void shoot()
 {
-  myServo.write(95);
+  triggerServo.write(95);
   delay(1000);
-  myServo.write(40);
+  triggerServo.write(40);
+}
+
+/*char* posLabel = (char*)malloc(6);
+uint8_t refPosLabel = 0;
+
+void updatePosLabel()
+{
+    if (displayMotorPos)
+    {
+        posLabel = itoa(motorPos, posLabel, 10);
+        STR.UpdateSetting(refPosLabel, (byte*)posLabel, sizeof(posLabel));
+    }
+}*/
+
+void updateServoMotor()
+{
+    motorServo.write(motorPos);
+}
+
+void balai()
+{
+    for (auto i = 0.0f; i <= 180.0f; i+=0.1f)
+    {
+        motorServo.write(i);
+        delay(20);
+    }
 }
 
 void setup() {
-  //Serial.begin(9600);
+  Serial.begin(115200);
+    fadingTimeMS.SetCallback([](){ motorServo.setFadingTimeMS(fadingTimeMS); });
 
-  myServo.attach(SERVO_PIN);
-  myServo.write(40);
+    motorPos = 0.0f;
+
+  /*for (int i = 0; i < 3; i++)
+    posLabel[i] = '0';
+
+  posLabel[3] = '\0';*/
+
+  //STR_Float testFl = 18.0f;
+
+  triggerServo.write(40);
+
+  motorServo.write(0);
+
+  //delay(1000);
+
+  //balai();
 
   STR.SetCommunicator(ESPNowCTR::CreateInstanceDiscoverableWithSSID("Turret"));
-  //STR.SetCommunicator(HardwareSerialCTR::CreateInstance(9600));
-  updateMotorOnTab();
-  pinMode(G_PIN, OUTPUT);
-  pinMode(D_PIN, OUTPUT);
-  digitalWrite(G_PIN, LOW);
-  digitalWrite(D_PIN, LOW);
 
-  STR.AddSetting(Setting::Type::Slider, &movingSpeed, sizeof(uint8_t), "SPEED", &updateMotorOnTab);
-  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "GAUCHE", &moveLeft);
-  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "STOP", &stopMove);
-  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "DROITE", &moveRight);
+  //INIT_DEFAULT_SETTINGATOR();
+  //STR.SetCommunicator(HardwareSerialCTR::CreateInstance(115200));
   STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "SHOOT", &shoot);
+
+  /*STR.AddSetting(Setting::Type::Slider, &motorPos, sizeof(motorPos), "POSITION", [](){
+    updatePosLabel();
+  });
+  // TEST MOTOR
+  STR.AddSetting(Setting::Type::Switch, &displayMotorPos, sizeof(displayMotorPos), "DISPLAY MOTOR POS");
+
+  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "+10", [](){
+    motorPos += 10;
+    if (motorPos > 180)
+        motorPos = 180;
+    updatePosLabel();
+});
+
+  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "++", [](){ 
+    if (motorPos < 180) 
+        motorPos++;
+    updatePosLabel();
+  });
+
+  refPosLabel = STR.AddSetting(Setting::Type::Label, posLabel, sizeof(posLabel));
+
+  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "--", [](){ 
+    if (motorPos > 0)
+        motorPos--;
+    updatePosLabel();
+  });
+
+  STR.AddSetting(Setting::Type::Trigger, nullptr, 0, "-10", [](){
+    motorPos -= 10;
+    if (motorPos > 180)
+        motorPos = 0;
+    updatePosLabel();
+  });*/
+  //motorPos.SetAutoUpdate(true);
 }
 
 void loop () {
   STR.Update();
-  updateMotor();
+  updateServoMotor();
 }
