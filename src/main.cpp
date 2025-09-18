@@ -35,6 +35,8 @@ void shoot()
 void setup() {
     Serial.begin(115200);
 
+    triggerServo.setSpeed(180.0);
+
     motorPos.SetCallback([](){
         motorServo.write(motorPos);
     });
@@ -53,7 +55,7 @@ void setup() {
     ESPNowCore *espNowCore = nullptr;
     espNowCore = ESPNowCore::CreateInstance();
     if (espNowCore)
-        espNowCore->BroadcastPing();
+        espNowCore->BroadcastPing(); 
 }
 
 void loop () {
